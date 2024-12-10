@@ -1,45 +1,129 @@
-import 'package:areness/Notice%20_type_model.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'Notice _type_model.dart';
+import 'notice_data_source.dart';
 import 'notice_data_table.dart';
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-// Ensure this import is added
 
-class FilesScreen extends StatelessWidget {
+import 'notice_model.dart';
+
+class FilesScreen extends StatefulWidget {
+  @override
+  State<FilesScreen> createState() => _FilesScreenState();
+}
+
+class _FilesScreenState extends State<FilesScreen> {
+  DateTime _startDate = DateTime.now().subtract(Duration(days: 7));
+  DateTime _endDate = DateTime.now();
+  String _selectedNoticeType = '';
+  String _searchQuery = '';
+
+  late NoticeDataSource _noticeDataSource;
+
+  @override
+  void initState() {
+    super.initState();
+    _noticeDataSource = NoticeDataSource();
+    _loadData(); // Initial load
+  }
+
+
+  void _loadData() async {
+    String noticeTypeToFetch = _selectedNoticeType.isEmpty ? 'All' : _selectedNoticeType;
+
+    final String formattedStartDate = DateFormat('yyyy-MM-dd').format(_startDate);
+    final String formattedEndDate = DateFormat('yyyy-MM-dd').format(_endDate);
+    // final String urls = 'https://lms.recqarz.com/api/notice/notices?notice=$noticeTypeToFetch&startDate=$formattedStartDate&endDate=$formattedEndDate&page=1&limit=200';
+    // print(urls);
+    final String token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjhiYWY0ZjJlNGUyNWI5ZTRmZThiN2YiLCJyb2xlIjoidXNlciIsImlhdCI6MTczMzgyMjk4OCwiZXhwIjoxNzM0NDI3Nzg4fQ.BuBjr2SlMBhyS2B3HV5PPHP8f5gGUsyV6I8A2It4O3UyNjYyfQ.eqwknvI3N9C9Vbxz6jAoCuenpkEZ06iFCo0TJqF3dww';
+    final url = Uri.parse(
+        'https://lms.recqarz.com/api/dashboard/getDataByClientId?clientId=NotALL&dateRange=$formattedStartDate,$formattedEndDate&serviceType=all&dateType=fileProcessed&noticeType=$noticeTypeToFetch'
+    );
+
+    try {
+      final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+
+      if (response.statusCode == 200) {
+        // Check if the response body contains valid JSON
+        Map<String, dynamic> responseData = json.decode(response.body);
+
+        // Ensure 'data' and 'results' are present to avoid null errors
+        if (responseData.containsKey('data') && responseData['data'].containsKey('results')) {
+          List<dynamic> noticesData = responseData['data']['results'];
+          print('API Response Data: $noticesData');
+
+          final noticeList = noticesData.map((item) => NoticeModel.fromJson(item)).toList();
+
+          setState(() {
+            // Assuming NoticeDataSource expects a list of NoticeModel
+            _noticeDataSource = NoticeDataSource(noticeList);  // Pass the list of NoticeModel
+          });
+
+        } else {
+          // Handle the case where the 'data' or 'results' key is missing
+          print('Unexpected response structure: ${response.body}');
+        }
+      } else {
+        // Handle non-200 status codes here
+        print('Failed to load notices. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Handle the error (e.g., parsing error, network issue, etc.)
+      print('Error fetching data: $e');
+    }
+
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
       appBar: AppBar(
-        title: Text('Files'),
+        title: Text(
+          'Files',
+          style: TextStyle(
+            color: Color.fromRGBO(10, 36, 114, 1),
+          ),
+        ),
+        automaticallyImplyLeading: Platform.isIOS ? true : false,
         actions: [
           IconButton(
-            icon: Icon(Icons.filter_list),
+            icon: Icon(Icons.filter_alt_outlined),
             onPressed: () {
               showDialog(
                 context: context,
                 builder: (BuildContext context) {
-                  return FilterDialog();
+                  return FilterDialog(
+                    onApplyFilters: (DateTime startDate, DateTime endDate, String selectedNoticeType) {
+                      setState(() {
+                        _startDate = startDate;
+                        _endDate = endDate;
+                        _selectedNoticeType = selectedNoticeType.isEmpty ? 'All' : selectedNoticeType;
+                      });
+                      _loadData(); // Re-fetch data with new filters
+                    },
+                  );
                 },
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: () {},
-          ),
         ],
       ),
-      body: NoticeDataTable(),  // Ensure this widget is used
+      body: NoticeDataTable(
+        startDate: _startDate,
+        endDate: _endDate,
+        selectedNoticeType: _selectedNoticeType.isEmpty ? 'All' : _selectedNoticeType,
+        searchQuery: _searchQuery,
+      ),
     );
   }
 }
-
-
-
 class FilterDialog extends StatefulWidget {
-  const FilterDialog({super.key});
+  final Function(DateTime startDate, DateTime endDate, String selectedNoticeType) onApplyFilters;
+
+  const FilterDialog({Key? key, required this.onApplyFilters}) : super(key: key);
 
   @override
   _FilterDialogState createState() => _FilterDialogState();
@@ -51,27 +135,18 @@ class _FilterDialogState extends State<FilterDialog> {
   String _selectedNoticeType = 'All';
   List<NoticeType> _noticeTypes = [];
 
-  Future<void> _selectDate(BuildContext context, DateTime initialDate, ValueChanged<DateTime> onDateSelected) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked != initialDate) {
-      onDateSelected(picked);
-    }
-  }
 
+  // Fetch notice types when the dialog is initialized
   Future<void> _fetchNoticeTypes() async {
+    final String token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjhiYWY0ZjJlNGUyNWI5ZTRmZThiN2YiLCJyb2xlIjoidXNlciIsImlhdCI6MTczMzcxNzg2MiwiZXhwIjoxNzM0MzIyNjYyfQ.eqwknvI3N9C9Vbxz6jAoCuenpkEZ06iFCo0TJqF3dww';  // Replace with actual token
+    final url = Uri.parse('https://lms.recqarz.com/api/clientMapping/user');
 
-    final String token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NzE3NzcxOGM5YzFmM2YwZTllZjcwM2EiLCJyb2xlIjoib3BzIiwiaWF0IjoxNzMyNjE2NDEwLCJleHAiOjE3MzI3MDI4MTB9.4i88sZwMRjzVT62OnlHXcI30AL6bvvpUApSBktFAWJ0';
-    final url = Uri.parse('https://lms.test.recqarz.com/api/noticeType/fetch?isActive=true');
     final response = await http.get(url, headers: {'Authorization': 'Bearer $token'});
 
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = json.decode(response.body);
       List<dynamic> data = responseData['data'];
+
       setState(() {
         _noticeTypes = data.map((e) => NoticeType.fromJson(e)).toList();
       });
@@ -81,8 +156,15 @@ class _FilterDialogState extends State<FilterDialog> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _fetchNoticeTypes();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AlertDialog(
+
       title: Text('Filter'),
       content: SingleChildScrollView(
         child: Column(
@@ -111,16 +193,21 @@ class _FilterDialogState extends State<FilterDialog> {
               value: _selectedNoticeType,
               onChanged: (newValue) {
                 setState(() {
-                  _selectedNoticeType = newValue!;
+                  _selectedNoticeType = newValue ?? ' All';
                 });
               },
-              items: <String>['All', 'DLN', 'QLD', 'Execution', 'Conciliation']
-                  .map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items: [
+                DropdownMenuItem<String>(
+                  value: 'All',
+                  child: Text('All'),
+                ),
+                ..._noticeTypes.map((NoticeType type) {
+                  return DropdownMenuItem<String>(
+                    value: type.notice.id,
+                    child: Text(type.notice.noticeTypeName),
+                  );
+                }).toList(),
+              ],
               decoration: InputDecoration(
                 labelText: 'Notice Type',
                 border: OutlineInputBorder(),
@@ -139,8 +226,7 @@ class _FilterDialogState extends State<FilterDialog> {
         ),
         TextButton(
           onPressed: () {
-            // Apply the filter and fetch the data
-            _fetchNoticeTypes();
+            widget.onApplyFilters(_startDate, _endDate, _selectedNoticeType);
             Navigator.of(context).pop();
           },
           child: Text('Apply'),
@@ -149,7 +235,6 @@ class _FilterDialogState extends State<FilterDialog> {
     );
   }
 }
-
 
 class DatePickerField extends StatelessWidget {
   final String label;

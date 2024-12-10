@@ -1,8 +1,9 @@
 
-import 'package:areness/main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart'as http;
 import 'dart:convert';
+
+import 'main_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -63,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (context) => MainScreen()),
       );
     } else {
-      // Handle login failure
+
       final errorMessage = json.decode(response.body)['message'];
       _showErrorDialog(errorMessage);
     }
@@ -123,15 +124,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               SizedBox(height: 20),
-              GestureDetector(
-                onTap: () {
-                  // Add your forgot password functionality here
-                },
-                child: Text(
-                  'Forgot Password?',
-                  style: TextStyle(color: Colors.blue),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     // Add your forgot password functionality
+              //   },
+              //   child: Text(
+              //     'Forgot Password?',
+              //     style: TextStyle(color: Colors.blue),
+              //   ),
+              // ),
               SizedBox(height: 20),
               _isLoading
                   ? CircularProgressIndicator()
@@ -147,15 +148,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               SizedBox(height: 20),
-              GestureDetector(
-                onTap: () {
-                  // Add your admin login functionality here
-                },
-                child: Text(
-                  'Login as the Admin',
-                  style: TextStyle(color: Colors.blue),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     // Add your admin login functionality here
+              //   },
+              //   child: Text(
+              //     'Login as the Admin',
+              //     style: TextStyle(color: Colors.blue),
+              //   ),
+              // ),
             ],
           ),
         ),

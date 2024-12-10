@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
     home: SearchScreen(),
   ));
 }
@@ -26,196 +29,270 @@ class SearchScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Search'),
+        title: Text(
+          'Search',
+          style: TextStyle(
+            color: Colors.blue[900],
+
+          ),
+
+        ),
+        automaticallyImplyLeading: (Platform.isIOS)?true: false,
+        // centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              'Search by ACC/No.',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-            SizedBox(height: 20),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Enter ACC/No.',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                ),
-                filled: true,
-                fillColor: Colors.grey[200],
-                prefixIcon: Icon(Icons.search),
+      body: Stack(
+        children: [
+          Center(
+            child: Opacity(
+              opacity: 0.9,
+              child: Image.asset(
+                'assets/images/bg.jpg',
+                width: 466,
+                height: 390,
+                fit: BoxFit.cover,
               ),
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => _performSearch(context),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                ),
-                backgroundColor: Colors.grey[500],
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'SEARCH BY ACC NO.',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  SizedBox(height: 20),
+                  Container(
+                    width: 300,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Enter ACC/No.',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30.0),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        suffixIcon: Icon(Icons.search),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => _performSearch(context),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30.0),
+                      ),
+                      backgroundColor: Color.fromRGBO(78, 185, 103, 1),
+                    ),
+                    child: Text('Search'),
+
+                  ),
+                ],
               ),
-              child: Text('Search'),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SearchResultScreen extends StatefulWidget {
+  final String searchQuery;
+
+  SearchResultScreen({required this.searchQuery});
+
+  @override
+  _SearchResultScreenState createState() => _SearchResultScreenState();
+}
+
+class _SearchResultScreenState extends State<SearchResultScreen> {
+  List<SearchResult> _data = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSearchResults();
+  }
+
+  Future<void> _fetchSearchResults() async {
+    final searchQuery = widget.searchQuery;
+    final apiUrl =
+        'https://lms.recqarz.com/api/notice/filterWithAccountRefnoPOD?name=&account=$searchQuery&ref_no=&mobilenumber=&startDate=&endDate=&page=1&limit=10';
+
+    final token =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NjhiYWY0ZjJlNGUyNWI5ZTRmZThiN2YiLCJyb2xlIjoidXNlciIsImlhdCI6MTczMzgyMjk4OCwiZXhwIjoxNzM0NDI3Nzg4fQ.BuBjr2SlMBhyS2B3HV5PPHP8f5gGUsyV6I8A2It4O3U ';
+
+    try {
+      print(apiUrl);
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+      print('API Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print("0000000000000000000000");
+        final Map<String, dynamic> resultData = json.decode(response.body);
+
+        print('Parsed Result Data: $resultData');
+
+        if (resultData['success'] == true) {
+          if (resultData['data'] is Map && resultData['data']['notices'] is List) {
+            setState(() {
+              _data = (resultData['data']['notices'] as List)
+                  .map((item) => SearchResult.fromJson(item))
+                  .where((item) {
+                return item.account.toString().startsWith(searchQuery);
+              }).toList();
+              _isLoading = false;
+            });
+          } else {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'No data found';
+            });
+          }
+        } else {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = resultData['message'] ?? 'Failed to load data';
+          });
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load data';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error occurred: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Search Results'),
+          centerTitle: true,
+
+        ),
+
+        // automaticallyImplyLeading: (Platform.isIOS) ? true : false,
+        body: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              if (_isLoading)
+                CircularProgressIndicator()
+              else if (_errorMessage.isNotEmpty)
+                Text(
+                  _errorMessage,
+                  style: TextStyle(color: Colors.red),
+                )
+              else if (_data.isEmpty)
+                  Text(
+                    'No results found',
+                    style: TextStyle(color: Colors.red),
+                  )
+                else
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Color.fromRGBO(10, 36, 114, 1), width: 0.75), // Blue border
+                          borderRadius: BorderRadius.circular(10), // Rounded corners
+                        ),
+                        child: DataTable(
+                          columns: [
+                            DataColumn(label: Text('S. No.')),
+                            DataColumn(label: Text('Name')),
+                            DataColumn(label: Text('Date')),
+                            DataColumn(label: Text('Account No.')),
+                            // DataColumn(label: Text('Address')),
+                          ],
+                          rows: _data.asMap().entries.map((entry) {
+                            int index = entry.key;
+                            SearchResult item = entry.value;
+                            return DataRow(
+                              cells: [
+                                DataCell(Text((index + 1).toString())),
+                                DataCell(Text(item.name)),
+                                DataCell(Text(item.date)),
+                                DataCell(Text(item.account)),
+                                // DataCell(Text(item.address)),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+
+              SizedBox(height: 20),
+              Text(
+                'Results for: ${widget.searchQuery}',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class SearchResultScreen extends StatelessWidget {
-  final String searchQuery;
+class SearchResult {
+  final String sNo;
+  final String noticeType;
+  final String date;
+  final String account;
+  final String address;
+  final String name;
 
-  SearchResultScreen({required this.searchQuery});
+  SearchResult({
+    required this.sNo,
+    required this.name,
+    required this.noticeType,
+    required this.date,
+    required this.account,
+    required this.address,
+  });
 
-  final List<Map<String, String>> data = [
-    {'S. No.': '1', 'Notice Type': 'DLN', 'Date': '22/11/2024', 'Account No.': '182837'},
-    {'S. No.': '2', 'Notice Type': 'QLD', 'Date': '22/11/2024', 'Account No.': '182837'},
-    {'S. No.': '3', 'Notice Type': 'Execution', 'Date': '22/11/2024', 'Account No.': '182837'},
-    {'S. No.': '4', 'Notice Type': 'Conciliation', 'Date': '22/11/2024', 'Account No.': '182837'},
-    {'S. No.': '5', 'Notice Type': 'Conciliation', 'Date': '22/11/2024', 'Account No.': '182837'},
-    {'S. No.': '6', 'Notice Type': 'QLD', 'Date': '21/11/2024', 'Account No.': '182837'},
-    {'S. No.': '7', 'Notice Type': 'Execution', 'Date': '21/11/2024', 'Account No.': '182837'},
-    {'S. No.': '8', 'Notice Type': 'QLD', 'Date': '21/11/2024', 'Account No.': '182837'},
-    {'S. No.': '9', 'Notice Type': 'DLN', 'Date': '20/11/2024', 'Account No.': '182837'},
-    {'S. No.': '10', 'Notice Type': 'Execution', 'Date': '20/11/2024', 'Account No.': '182837'},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Search Results'),
-      ),
-      body: Column(
-        children: [
-          // Add the new header section
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'S. No.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Notice Type',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Date',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Account No.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(
-            thickness: 1,
-            color: Colors.grey[300],
-          ),
-
-          // Render the table below the header
-          Expanded(
-            child: ListView.builder(
-              itemCount: data.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  color: index % 2 == 0 ? Colors.grey[100] : Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          data[index]['S. No.']!,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          data[index]['Notice Type']!,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          data[index]['Date']!,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          data[index]['Account No.']!,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.file_copy),
-            label: 'Files',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance),
-            label: 'SBI',
-          ),
-        ],
-        currentIndex: 2,
-        selectedItemColor: Colors.blue,
-        onTap: (index) {
-          // Handle navigation logic here
-        },
-      ),
+  factory SearchResult.fromJson(Map<String, dynamic> json) {
+    return SearchResult(
+      sNo: json['_id'] ?? '',
+      noticeType: json['NoticeID']?['notice']?['noticeTypeName'] ?? '',
+      date: json['data']?['date'] ?? '',
+      name: json['data']?['name'] ?? '',
+      account: (json['data']?['account']?.toString() ?? 'No Account Found'),
+      address: json['data']?['address'] ?? '',
     );
   }
+
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sNo': sNo,
+      'noticeType': noticeType,
+      'date': date,
+      'accountNo': account,
+      'address': address,
+    };
+  }
 }
-
-
